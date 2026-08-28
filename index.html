@@ -11,8 +11,7 @@
       <header>
         <h1>CPU Scheduling Visualizer</h1>
         <p>
-          Simulate CPU scheduling algorithms, generate Gantt charts, and
-          calculate process metrics.
+          Simulate CPU scheduling algorithms with live, step-by-step playback.
         </p>
       </header>
 
@@ -35,7 +34,7 @@
           <button id="add-process-btn" class="btn secondary">
             + Add Process
           </button>
-          <button id="run-btn" class="btn primary">Simulate</button>
+          <button id="build-btn" class="btn primary">Load Simulation</button>
         </div>
 
         <table class="input-table" id="process-table">
@@ -47,20 +46,59 @@
               <th>Action</th>
             </tr>
           </thead>
-          <tbody id="process-list">
-            <!-- Default processes injected via script or hardcoded -->
-          </tbody>
+          <tbody id="process-list"></tbody>
         </table>
       </section>
 
-      <!-- Visualizer Outputs -->
-      <section id="results-section" class="card" style="display: none">
+      <!-- Live Simulation View -->
+      <section id="simulation-section" class="card" style="display: none">
+        <h2>Live CPU Execution</h2>
+
+        <!-- Simulation Controls -->
+        <div class="sim-controls">
+          <button id="play-btn" class="btn primary">▶ Play</button>
+          <button id="step-btn" class="btn secondary">⏭ Step</button>
+          <button id="reset-btn" class="btn danger">↺ Reset</button>
+
+          <div class="form-group inline">
+            <label for="speed-slider">Speed:</label>
+            <input
+              type="range"
+              id="speed-slider"
+              min="100"
+              max="1000"
+              step="100"
+              value="500"
+            />
+            <span id="speed-label">500ms</span>
+          </div>
+          <div class="time-counter">
+            Current Time: <strong id="clock-display">0</strong>
+          </div>
+        </div>
+
+        <!-- State Visualization: CPU & Ready Queue -->
+        <div class="core-grid">
+          <div class="core-card">
+            <span class="badge">Running</span>
+            <h3>CPU Core</h3>
+            <div id="active-cpu" class="cpu-slot empty">IDLE</div>
+          </div>
+          <div class="core-card">
+            <span class="badge">Ready</span>
+            <h3>Ready Queue</h3>
+            <div id="ready-queue" class="queue-slot"><em>Queue Empty</em></div>
+          </div>
+        </div>
+
+        <!-- Progressive Gantt Chart -->
         <h2>Gantt Chart</h2>
         <div class="gantt-wrapper">
           <div id="gantt-chart" class="gantt-chart"></div>
           <div id="gantt-timeline" class="gantt-timeline"></div>
         </div>
 
+        <!-- Metrics -->
         <h2>Performance Metrics</h2>
         <table class="output-table">
           <thead>
@@ -68,9 +106,10 @@
               <th>Process ID</th>
               <th>Arrival Time</th>
               <th>Burst Time</th>
-              <th>Completion Time (CT)</th>
-              <th>Turnaround Time (TAT)</th>
-              <th>Waiting Time (WT)</th>
+              <th>Remaining</th>
+              <th>Completion Time</th>
+              <th>Turnaround Time</th>
+              <th>Waiting Time</th>
             </tr>
           </thead>
           <tbody id="metrics-body"></tbody>
@@ -79,15 +118,15 @@
         <div class="summary-cards">
           <div class="stat-card">
             <span>Avg Turnaround Time:</span>
-            <strong id="avg-tat">0</strong>
+            <strong id="avg-tat">-</strong>
           </div>
           <div class="stat-card">
             <span>Avg Waiting Time:</span>
-            <strong id="avg-wt">0</strong>
+            <strong id="avg-wt">-</strong>
           </div>
           <div class="stat-card">
             <span>CPU Utilization:</span>
-            <strong id="cpu-util">0%</strong>
+            <strong id="cpu-util">-</strong>
           </div>
         </div>
       </section>
