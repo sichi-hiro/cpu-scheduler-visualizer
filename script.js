@@ -64,14 +64,13 @@ addProcessRow('P3', 2, 8);
 addProcessRow('P4', 3, 6);
 
 // -------------------------------------------------------------
-// SIMULATION ENGINE (Step-by-Step Generator)
+// SIMULATION ENGINE
 // -------------------------------------------------------------
 
 let simSteps = [];
 let currentStepIdx = 0;
 let isRunning = false;
 let timer = null;
-let baseProcesses = [];
 let totalSimTime = 0;
 
 buildBtn.addEventListener('click', () => {
@@ -83,7 +82,7 @@ function loadSimulation() {
   currentStepIdx = 0;
   simSteps = [];
 
-  baseProcesses = [];
+  const baseProcesses = [];
   const rows = processList.querySelectorAll('tr');
   rows.forEach((row) => {
     const pid = row.cells[0].innerText.trim();
@@ -97,7 +96,6 @@ function loadSimulation() {
   const algo = algorithmSelect.value;
   const quantum = parseInt(document.getElementById('time-quantum').value, 10) || 2;
 
-  // Generate tick-by-tick simulation state
   simSteps = generateSimulationSteps(baseProcesses, algo, quantum);
   totalSimTime = simSteps.length > 0 ? simSteps[simSteps.length - 1].time : 0;
 
@@ -105,7 +103,6 @@ function loadSimulation() {
   renderStep(0);
 }
 
-// Generate an array where each item represents state at Time = T
 function generateSimulationSteps(inputProcesses, algo, quantum) {
   const processes = inputProcesses.map(p => ({
     id: p.id,
@@ -121,62 +118,67 @@ function generateSimulationSteps(inputProcesses, algo, quantum) {
   let time = 0;
   let readyQueue = [];
   let activeProcess = null;
-  let currentQuantumCounter = 0;
+  let currentSlice = 0;
   let completed = 0;
   const total = processes.length;
-  let historyGantt = []; // continuous blocks
+  let historyGantt = [];
+
+  // Track processes that have already been queued
+  const queuedSet = new Set();
 
   while (completed < total) {
-    // 1. Check arrivals at current time
-    const arriving = processes.filter(p => p.at === time);
-    arriving.forEach(p => readyQueue.push(p));
+    // 1. Arriving processes at current time
+    processes.forEach(p => {
+      if (p.at <= time && !queuedSet.has(p.id)) {
+        readyQueue.push(p);
+        queuedSet.add(p.id);
+      }
+    });
 
-    // 2. Select process if CPU is idle
+    // 2. Pick next process if CPU is idle
     if (!activeProcess && readyQueue.length > 0) {
       activeProcess = readyQueue.shift();
-      currentQuantumCounter = 0;
+      currentSlice = 0;
     }
 
-    // 3. Record snapshot BEFORE executing this time unit
     const runningId = activeProcess ? activeProcess.id : 'IDLE';
 
-    // Update Gantt history block
+    // 3. Update Gantt Chart block history
     if (historyGantt.length === 0 || historyGantt[historyGantt.length - 1].id !== runningId) {
       historyGantt.push({ id: runningId, start: time, end: time + 1 });
     } else {
       historyGantt[historyGantt.length - 1].end = time + 1;
     }
 
-    // 4. Advance execution 1 unit
+    // 4. Tick forward 1 unit
     time++;
 
     if (activeProcess) {
       activeProcess.remaining--;
-      currentQuantumCounter++;
+      currentSlice++;
 
-      // Check if finished
       if (activeProcess.remaining === 0) {
         activeProcess.ct = time;
         activeProcess.tat = activeProcess.ct - activeProcess.at;
         activeProcess.wt = activeProcess.tat - activeProcess.bt;
         completed++;
         activeProcess = null;
-        currentQuantumCounter = 0;
-      } 
-      // Round Robin Quantum Expired
-      else if (algo === 'RR' && currentQuantumCounter === quantum) {
-        // First add newly arriving processes at this new time unit
-        const nextArriving = processes.filter(p => p.at === time);
-        nextArriving.forEach(p => readyQueue.push(p));
-
-        // Re-queue the current process
+        currentSlice = 0;
+      } else if (algo === 'RR' && currentSlice === quantum) {
+        // Collect any arrivals before re-queueing
+        processes.forEach(p => {
+          if (p.at <= time && !queuedSet.has(p.id)) {
+            readyQueue.push(p);
+            queuedSet.add(p.id);
+          }
+        });
         readyQueue.push(activeProcess);
         activeProcess = null;
-        currentQuantumCounter = 0;
+        currentSlice = 0;
       }
     }
 
-    // Save deep copy of the state at this point
+    // Save snapshot of this tick
     steps.push({
       time: time,
       activeId: runningId,
@@ -190,7 +192,6 @@ function generateSimulationSteps(inputProcesses, algo, quantum) {
   return steps;
 }
 
-// Render specific frame
 function renderStep(idx) {
   if (idx < 0 || idx >= simSteps.length) return;
   const state = simSteps[idx];
@@ -198,7 +199,7 @@ function renderStep(idx) {
   // Clock
   clockDisplay.innerText = state.time;
 
-  // CPU
+  // CPU Core
   if (state.activeId === 'IDLE') {
     activeCpu.className = 'cpu-slot empty';
     activeCpu.innerText = 'IDLE';
@@ -225,7 +226,7 @@ function renderStep(idx) {
     });
   }
 
-  // Gantt Chart Rendering
+  // Gantt Chart
   chartEl.innerHTML = '';
   timelineEl.innerHTML = '';
 
@@ -276,12 +277,10 @@ function renderStep(idx) {
     metricsBody.appendChild(tr);
   });
 
-  // Global Averages (calculated when everything is complete)
+  // Stats Summary
   if (finishedCount === state.processes.length) {
     const avgTat = (totalTAT / finishedCount).toFixed(2);
     const avgWt = (totalWT / finishedCount).toFixed(2);
-    
-    // CPU Utilization = (Total Time - Idle Time) / Total Time
     const totalIdle = state.gantt
       .filter(b => b.id === 'IDLE')
       .reduce((sum, b) => sum + (b.end - b.start), 0);
@@ -306,7 +305,7 @@ function addTimeMarker(container, timeValue, leftPct) {
 }
 
 // -------------------------------------------------------------
-// CONTROLS (Play, Pause, Step, Reset)
+// CONTROLS
 // -------------------------------------------------------------
 
 function stepSimulation() {
